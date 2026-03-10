@@ -1,8 +1,3 @@
-
-#//maak een menu
-#// request van api gebruik 2 endpoints 
-# maak een switch statement om meerdere condities the controleren
-# verwerk 3 functionaliteiten in het menu
 import requests
 import random
 
@@ -11,7 +6,6 @@ class Rocket:
         self.id = id
         self.name = name
         self.type = type
-
     def __str__(self):
         return f"{self.name} ({self.type})"
 
@@ -29,26 +23,25 @@ class Journey:
         self.launch_platform = None
         self.landing_platform = None
         self.launch_name = None
+        self.landing_info = None
+        self.status = "planning"
 
     def add_crew(self, member):
         if any(cm.name == member.name for cm in self.crew):
             return
         self.crew.append(member)
-        print(f"{member.name} added to the crew for {self.destination}.")
+        print(f"{member.name} added to crew.")
 
     def set_rocket(self, rocket):
         self.rocket = rocket
-        print(f"{rocket.name} assigned to {self.destination}.")
+        print(f"{rocket.name} assigned.")
 
-    def reset_journey(self, new_destination):
-        self.destination = new_destination
-        self.rocket = None
-        self.crew = []
-        self.starlink = []
-        self.launch_platform = None
-        self.landing_platform = None
-        self.launch_name = None
-        print(f"Journey reset. New destination: {self.destination}")
+    def fetch_landing_info(self, landpad_id):
+        global landpad_data
+        for pad in landpad_data:
+            if pad["id"] == landpad_id:
+                self.landing_info = pad
+                return
 
     def fetch_starlink_for_launch(self, launch_id):
         try:
@@ -58,79 +51,85 @@ class Journey:
                 print("Error fetching launch data")
                 return
             launch_data = response.json()
-            self.launch_name = launch_data.get("name", "Unknown Launch")
-            self.launch_platform = launch_data.get("launchpad", "")
-            cores = launch_data.get("cores", [])
-            if cores:
-                self.landing_platform = cores[0].get("landpad", "")
-            starlink_url = "https://api.spacexdata.com/v4/starlink"
-            starlink_resp = requests.get(starlink_url)
+            self.launch_name = launch_data.get("name")
+            self.launch_platform = launch_data.get("launchpad")
+            starlink_resp = requests.get("https://api.spacexdata.com/v4/starlink")
             if starlink_resp.status_code != 200:
                 print("Error fetching Starlink data")
                 return
-            all_starlink = starlink_resp.json()
+            all_starlink = starlink_resp.json()[:200]
             self.starlink = []
             for sat in all_starlink:
                 launch_ref = sat.get("spaceTrack", {}).get("LAUNCH", "")
-                land_ref = sat.get("spaceTrack", {}).get("LAND", "")
                 if self.launch_platform and self.launch_platform in launch_ref:
                     self.starlink.append(sat)
-                elif self.landing_platform and self.landing_platform in land_ref:
-                    self.starlink.append(sat)
-            print(f"{len(self.starlink)} Starlink satellites linked to {self.launch_name}")
         except:
             print("Error fetching Starlink satellites for launch")
 
     def show_journey(self):
-        print("\nYOUR SPACE JOURNEY")
+        print("\n=== SPACE JOURNEY ===")
+        print("Status:", self.status)
         print("Destination:", self.destination)
         print("Rocket:", self.rocket if self.rocket else "None")
         print("Launch:", self.launch_name if self.launch_name else "None")
-        print("Launch Platform:", self.launch_platform if self.launch_platform else "None")
-        print("Landing Platform:", self.landing_platform if self.landing_platform else "None")
+        print("Launch Platform:", self.launch_platform)
+        print("Landing Platform:", self.landing_platform)
         if self.crew:
-            print("Crew:")
+            print("\nCrew:")
             for member in self.crew:
                 print("-", member.name)
         else:
             print("Crew: None")
+        if self.landing_info:
+            print("\nLanding Platform Info")
+            print("Name:", self.landing_info.get("name"))
+            print("Full Name:", self.landing_info.get("full_name"))
+            print("Type:", self.landing_info.get("type"))
+            print("Status:", self.landing_info.get("status"))
+            print("Location:", self.landing_info.get("locality"), "-", self.landing_info.get("region"))
+            print("Latitude:", self.landing_info.get("latitude"))
+            print("Longitude:", self.landing_info.get("longitude"))
+            attempts = self.landing_info.get("landing_attempts", 0)
+            success = self.landing_info.get("landing_successes", 0)
+            print("Landing Attempts:", attempts)
+            print("Landing Successes:", success)
+            if attempts > 0:
+                rate = round((success / attempts) * 100, 2)
+                print("Success Rate:", rate, "%")
+            print("Details:", self.landing_info.get("details"))
         if self.starlink:
-            print("\nStarlink satellites linked to this journey (first 10):")
-            for sat in self.starlink[:10]:
+            print("\nStarlink Satellites (first 5):")
+            for sat in self.starlink[:5]:
                 name = sat.get("spaceTrack", {}).get("OBJECT_NAME", "Unknown")
-                version = sat.get("version", "Unknown")
                 lat = sat.get("latitude", "N/A")
                 lon = sat.get("longitude", "N/A")
-                alt = sat.get("altitude_km", "N/A")
-                print(f"{name} | Version: {version} | Lat: {lat} | Lon: {lon} | Alt: {alt} km")
+                print(f"{name} | Lat: {lat} | Lon: {lon}")
         print()
 
 class SpaceAPI:
     def get_crew(self):
         try:
-            response = requests.get("https://api.spacexdata.com/v4/crew")
-            return response.json() if response.status_code == 200 else []
+            return requests.get("https://api.spacexdata.com/v4/crew").json()
         except:
             return []
-
     def get_rockets(self):
         try:
-            response = requests.get("https://api.spacexdata.com/v4/rockets")
-            return response.json() if response.status_code == 200 else []
+            return requests.get("https://api.spacexdata.com/v4/rockets").json()
         except:
             return []
-
     def get_launches(self):
         try:
-            response = requests.get("https://api.spacexdata.com/v4/launches")
-            return response.json() if response.status_code == 200 else []
+            return requests.get("https://api.spacexdata.com/v4/launches").json()
         except:
             return []
-
     def get_landpads(self):
         try:
-            response = requests.get("https://api.spacexdata.com/v4/landpads")
-            return response.json() if response.status_code == 200 else []
+            return requests.get("https://api.spacexdata.com/v4/landpads").json()
+        except:
+            return []
+    def get_launchpads(self):
+        try:
+            return requests.get("https://api.spacexdata.com/v4/launchpads").json()
         except:
             return []
 
@@ -139,189 +138,204 @@ crew_data = api.get_crew()
 rocket_data = api.get_rockets()
 launch_data = api.get_launches()
 landpad_data = api.get_landpads()
+launchpad_data = api.get_launchpads()
 journey = Journey("Mars")
 
 def show_menu():
-    print("\n=== SPACE MISSION PLANNER ===")
-    print("CREW:")
-    print("1. List astronauts")
-    print("2. Pick your crew (2 NoviNauts + YOU as Captain)")
-    print("ROCKET:")
-    print("3. Pick a rocket")
-    print("JOURNEY:")
-    print("4. Show your journey")
-    print("5. Random journey")
-    print("6. Reset journey")
-    print("LAUNCH & LANDING:")
-    print("7. Choose a launch and landing platform")
-    print("MARS OPTIONS:")
-    print("9. Mars options (Refuel / Return / Stay)")
-    print("EXIT:")
-    print("8. Exit")
+    if journey.status in ["in-flight", "completed"]:
+        print("\n=== SPACE MISSION PLANNER ===")
+        print(f"Current mission status: {journey.status.upper()}")
+        print("To start a new mission (crew, rocket, launch), you must reset first.")
+    
+    print("\nMISSION PLANNING")
+    print("1 List astronauts")
+    print("2 Pick crew")
+    print("3 Pick rocket")
+    print("4 Random journey")
+    print("\nLAUNCH")
+    print("5 Choose launch and landing pad")
+    print("\nMISSION STATUS")
+    print("6 Show journey")
+    print("\nIN FLIGHT")
+    print("7 Mars options")
+    print("\nMISSION CONTROL")
+    print("8 Reset journey")
+    print("\nSYSTEM")
+    print("9 Exit")
+    
     while True:
-        choice = input("Choose an option: ")
-        if choice.isdigit() and int(choice) in [1,2,3,4,5,6,7,8,9]:
-            return int(choice)
-        print("Please enter a valid option.")
+        choice = input("Choose option: ")
+        if choice.isdigit() and int(choice) in range(1, 10):
+            choice = int(choice)
+            if journey.status in ["in-flight", "completed"] and choice in [2, 3, 4, 5]:
+                print("Cannot choose this option during an active or completed mission. Reset first.")
+                continue
+            return choice
+        print("Invalid option")
 
 def list_astronauts():
-    if not crew_data:
-        print("No crew data available.")
-        return
     print("\nAstronauts:")
     for member in crew_data:
         print("-", member["name"])
 
-def pick_crew_members_with_captain(captain_name="You"):
-    if not crew_data:
-        print("No crew data available.")
+def pick_crew():
+    if journey.status in ["in-flight", "completed"]:
+        print("Cannot change crew during an active or completed mission. Reset first.")
         return
     if journey.crew:
-        print(f"Crew already assigned to {journey.destination}. Reset journey first to pick new crew.")
+        print("Crew already selected")
         return
-    captain = CrewMember(captain_name, "Captain")
-    journey.add_crew(captain)
-    print(f"{captain_name} assigned as captain.")
-    selected_count = 0
-    max_members = 2
-    while selected_count < max_members:
-        print(f"\nPick crew member {selected_count + 1} of {max_members}:")
+    journey.add_crew(CrewMember("You", "Captain"))
+    for i in range(2):
+        print("\nPick crew member")
         for member in crew_data:
             print("-", member["name"])
-        name_input = input("Enter astronaut name: ").strip().lower()
-        found = False
+        name = input("Enter astronaut name: ").lower()
         for member in crew_data:
-            if "name" in member and member["name"].strip().lower() == name_input:
-                if any(cm.name.lower() == member["name"].strip().lower() for cm in journey.crew):
-                    print("Astronaut already selected, choose another.")
-                    found = True
-                    break
-                crew_member = CrewMember(member["name"], member.get("agency", "Unknown"))
-                journey.add_crew(crew_member)
-                found = True
-                selected_count += 1
+            if member["name"].lower() == name:
+                journey.add_crew(CrewMember(member["name"], "Astronaut"))
                 break
-        if not found:
-            print("Astronaut not found. Try again.")
 
 def choose_rocket():
-    if not rocket_data:
-        print("No rocket data available.")
+    if journey.status in ["in-flight", "completed"]:
+        print("Cannot change rocket during an active or completed mission. Reset first.")
         return
-    print("\nAvailable Rockets:")
+    print("\nAvailable rockets")
     for rocket in rocket_data:
         print("-", rocket["name"])
-    name_input = input("Enter rocket name to pick: ").strip().lower()
-    found = False
-    for rocket_info in rocket_data:
-        if "name" in rocket_info and rocket_info["name"].strip().lower() == name_input:
-            rocket = Rocket(rocket_info["id"], rocket_info["name"], rocket_info["type"])
-            journey.set_rocket(rocket)
-            found = True
-            break
-    if not found:
-        print("Rocket not found. Please check the name or try again.")
-
-def random_journey():
-    if not crew_data or not rocket_data or not launch_data:
-        print("Not enough data for a random journey.")
-        return
-    if journey.crew or journey.rocket:
-        print(f"A crew and/or rocket is already assigned to {journey.destination}. Reset first.")
-        return
-    rocket_info = random.choice(rocket_data)
-    crew_info = random.sample(crew_data, 2)
-    rocket = Rocket(rocket_info["id"], rocket_info["name"], rocket_info["type"])
-    journey.set_rocket(rocket)
-    journey.add_crew(CrewMember("You", "Captain"))
-    for c in crew_info:
-        journey.add_crew(CrewMember(c["name"], c.get("agency","Unknown")))
-    launch = random.choice(launch_data)
-    journey.fetch_starlink_for_launch(launch["id"])
-    journey.show_journey()
+    name = input("Enter rocket name: ").lower()
+    for rocket in rocket_data:
+        if rocket["name"].lower() == name:
+            journey.set_rocket(Rocket(rocket["id"], rocket["name"], rocket["type"]))
+            return
+    print("Rocket not found")
 
 def choose_launch():
-    if not launch_data:
-        print("No launch data available.")
+    if journey.status in ["in-flight", "completed"]:
+        print("Cannot choose launch during an active or completed mission. Reset first.")
         return
-    print("\nAvailable Launches:")
+    print("\nAvailable launches:")
     for i, launch in enumerate(launch_data[:20]):
-        print(f"{i + 1}: {launch.get('name')} | Date: {launch.get('date_utc')}")
+        lp_id = launch.get("launchpad")
+        lp_name = "Unknown"
+        for lp in launchpad_data:
+            if lp["id"] == lp_id:
+                lp_name = lp.get("full_name","Unknown")
+        print(f"{i + 1}: {launch['name']} | Launchpad: {lp_name}")
+    
+    choice = int(input("Choose launch number: ")) - 1
+    selected_launch = launch_data[choice]
+    journey.launch_name = selected_launch.get("name")
+    journey.launch_platform = selected_launch.get("launchpad")
+
+    print("\nAvailable landing pads:")
+    for i, pad in enumerate(landpad_data):
+        print(f"{i + 1}: {pad.get('full_name')} | Location: {pad.get('locality')} - {pad.get('region')}")
+    
     while True:
-        choice = input("Pick a launch number: ")
-        if choice.isdigit():
-            choice = int(choice) - 1
-            if 0 <= choice < len(launch_data[:20]):
-                selected_launch = launch_data[choice]
-                journey.launch_name = selected_launch.get("name")
-                journey.launch_platform = selected_launch.get("launchpad", "")
-                cores = selected_launch.get("cores", [])
-                available_landpads = [core.get("landpad") for core in cores if core.get("landpad")]
-                if not available_landpads:
-                    available_landpads = [lp['id'] for lp in landpad_data]
-                print("\nAvailable landing platforms:")
-                for idx, pad in enumerate(available_landpads):
-                    pad_name = pad
-                    for lp in landpad_data:
-                        if lp['id'] == pad:
-                            pad_name = lp.get('name', pad)
-                    print(f"{idx + 1}: {pad_name}")
-                while True:
-                    landing_choice = input("Pick a landing platform number: ")
-                    if landing_choice.isdigit():
-                        landing_choice = int(landing_choice) - 1
-                        if 0 <= landing_choice < len(available_landpads):
-                            journey.landing_platform = available_landpads[landing_choice]
-                            break
-                    print("Invalid choice, try again.")
-                journey.fetch_starlink_for_launch(selected_launch["id"])
-                journey.show_journey()
-                return
+        land_choice = input("Choose landing pad number: ")
+        if land_choice.isdigit() and 1 <= int(land_choice) <= len(landpad_data):
+            selected_pad = landpad_data[int(land_choice)-1]
+            journey.landing_platform = selected_pad["id"]
+            journey.fetch_landing_info(journey.landing_platform)
+            break
         print("Invalid choice, try again.")
 
+    journey.fetch_starlink_for_launch(selected_launch["id"])
+    journey.status = "in-flight"
+    journey.show_journey()
+
+def random_journey():
+    if journey.status in ["in-flight", "completed"]:
+        print("Cannot start a random journey during an active or completed mission. Reset first.")
+        return
+    rocket = random.choice(rocket_data)
+    journey.set_rocket(Rocket(rocket["id"], rocket["name"], rocket["type"]))
+    journey.add_crew(CrewMember("You", "Captain"))
+    crew = random.sample(crew_data, 2)
+    for c in crew:
+        journey.add_crew(CrewMember(c["name"], "Astronaut"))
+    launch = random.choice(launch_data)
+    journey.launch_name = launch.get("name")
+    journey.launch_platform = launch.get("launchpad")
+    landpad = random.choice(landpad_data)
+    journey.landing_platform = landpad["id"]
+    journey.fetch_landing_info(journey.landing_platform)
+    journey.fetch_starlink_for_launch(launch["id"])
+    journey.status = "in-flight"
+    journey.show_journey()
+
 def mars_options():
-    if journey.destination.lower() != "mars":
-        print("Mars options are only available for a journey to Mars.")
+    if journey.status != "in-flight":
+        print("Mars options are only available during flight.")
         return
     print("\n--- MARS OPTIONS ---")
-    print("1. Refuel on Mars")
-    print("2. Return early to Novi Space Academy")
-    print("3. Stay at Novi Hub")
+    print("1 Refuel on Mars")
+    print("2 Return to Earth")
+    print("3 Stay on Mars")
+    choice = input("Choose option: ")
+    if choice == "1":
+        print("Refueling complete")
+        journey.status = "completed"
+    elif choice == "2":
+        journey.destination = "Earth"
+        print("Returning home")
+        journey.status = "completed"
+    elif choice == "3":
+        print("Mission paused at Mars base")
+        journey.status = "completed"
+
+def reset_journey():
+    if journey.status != "completed":
+        print("Mission must be completed before reset.")
+        return
+    new_dest = input("Enter new destination: ")
+    print("Do you want to start a completely new journey or stay at home base?")
+    print("1 New journey (reset crew and rocket)")
+    print("2 Stay at Novi Space Academy (keep crew and rocket)")
     while True:
-        choice = input("Make a choice: ")
+        choice = input("Enter 1 or 2: ").strip()
         if choice == "1":
-            print("Crew is refueling on Mars... resources replenished!")
-            break
+            journey.destination = new_dest
+            journey.rocket = None
+            journey.crew = []
+            journey.starlink = []
+            journey.launch_platform = None
+            journey.landing_platform = None
+            journey.launch_name = None
+            journey.landing_info = None
+            journey.status = "planning"
+            print(f"New journey started to {journey.destination}.")
+            return
         elif choice == "2":
             journey.destination = "Novi Space Academy"
-            print("Journey terminated early. Returning to Novi Space Academy with current rocket, crew, and landing platform.")
-            journey.show_journey()
-            break
-        elif choice == "3":
-            print("Staying at Novi Hub. Mission paused.")
-            break
-        else:
-            print("Invalid choice, try again.")
+            journey.launch_platform = None
+            journey.landing_platform = None
+            journey.launch_name = None
+            journey.landing_info = None
+            journey.status = "planning"
+            print("Journey destination set to Novi Space Academy. Crew and rocket retained.")
+            return
+        print("Invalid choice, enter 1 or 2.")
 
 while True:
     choice = show_menu()
     if choice == 1:
         list_astronauts()
     elif choice == 2:
-        pick_crew_members_with_captain()
+        pick_crew()
     elif choice == 3:
         choose_rocket()
     elif choice == 4:
-        journey.show_journey()
-    elif choice == 5:
         random_journey()
-    elif choice == 6:
-        new_dest = input("Enter new destination for the journey: ")
-        journey.reset_journey(new_dest)
-    elif choice == 7:
+    elif choice == 5:
         choose_launch()
+    elif choice == 6:
+        journey.show_journey()
+    elif choice == 7:
+        mars_options()
     elif choice == 8:
+        reset_journey()
+    elif choice == 9:
         print("Mission aborted")
         break
-    elif choice == 9:
-        mars_options()
